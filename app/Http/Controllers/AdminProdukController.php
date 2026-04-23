@@ -63,6 +63,7 @@ public function update(Request $request, $id)
     if ($request->has('stok') && !$request->has('nama_produk')) {
 
         $produk->stok = $request->stok;
+        $produk->harga = $request->harga;
         $produk->diskon = $request->diskon ?? 0;
         $produk->save();
 

@@ -36,6 +36,12 @@
             class="w-full bg-pink-600 text-white py-2 rounded-lg hover:bg-pink-700 transition">
             Login
         </button>
+        
+<div class="text-center mt-4">
+            <a href="{{ route('forgot.password') }}" class="text-sm text-pink-600">
+                Lupa Password
+            </a>
+        </div>
 
         <div class="text-center mt-4">
             <a href="{{ route('register') }}" class="text-sm text-pink-600">

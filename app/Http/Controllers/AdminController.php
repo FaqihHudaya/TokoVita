@@ -20,7 +20,13 @@ public function dashboard()
 {
     $totalProduk = Produk::count();
     $totalPesanan = Pesanan::count();
-    $totalPendapatan = Pesanan::sum('total');
+$totalPendapatan = Pesanan::where('status', 'selesai')->sum('total_harga');
+$totalPelanggan = User::where('role', 'pelanggan')->count();
+
+$pesananBaru = Pesanan::with('user')
+            ->orderBy('id_pesanan', 'desc')
+            ->take(5)
+            ->get();
 
    $produkTerlaris = DB::table('detail_pesanan')
     ->join('produk', 'detail_pesanan.id_produk', '=', 'produk.id_produk')
@@ -38,6 +44,8 @@ public function dashboard()
         'totalProduk',
         'totalPesanan',
         'totalPendapatan',
+        'totalPelanggan',
+        'pesananBaru',
         'produkTerlaris'
     ));
 }
@@ -78,13 +86,18 @@ public function detailPesanan($id)
 
 public function updateStatus(Request $request, $id)
 {
+    $request->validate([
+        'status' => 'required|in:menunggu,diproses,selesai,dibatalkan'
+    ]);
+
     $pesanan = pesanan::findOrFail($id);
 
     $pesanan->status = $request->status;
+    $pesanan->is_read = false; // 🔥 reset notif saat status berubah
     $pesanan->save();
 
     return redirect()->route('admin.dashboard')
-            ->with('success','Status pesanan berhasil diperbarui');
+    ->with('success', 'Status pesanan berhasil diubah menjadi ' . $request->status);
 }
 
 

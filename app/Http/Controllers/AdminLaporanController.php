@@ -4,73 +4,116 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Pesanan;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
-use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\Kategori;
-
+use Carbon\Carbon;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class AdminLaporanController extends Controller
 {
-
-public function exportPdf(Request $request)
-{
-    $filter = $request->filter ?? '30';
-
-    $query = Pesanan::where('status','!=','dibatalkan');
-
-    if ($filter == '7') {
-        $query->whereDate('tanggal','>=',now()->subDays(7));
-    } elseif ($filter == '30') {
-        $query->whereDate('tanggal','>=',now()->subDays(30));
-    }
-
-    $pesanan = $query->get();
-
-    $totalPendapatan = $pesanan->sum('total_harga');
-    $totalPesanan = $pesanan->count();
-
-    $pdf = Pdf::loadView('admin.laporan.pdf', compact(
-        'pesanan',
-        'totalPendapatan',
-        'totalPesanan'
-    ));
-
-    return $pdf->download('laporan-penjualan.pdf');
-}
     public function index(Request $request)
     {
         $filter = $request->filter ?? '30';
+        $kategori_id = $request->kategori_id ?? 'all';
+        $tanggal_mulai = $request->tanggal_mulai;
+        $tanggal_selesai = $request->tanggal_selesai;
 
-        $query = Pesanan::where('status','!=','dibatalkan');
+        // Mulai Query dengan memanggil relasi detail pesanan
+        $query = Pesanan::with('detail.produk')->where('status', '!=', 'dibatalkan');
 
-        if ($filter == '7') {
-            $query->whereDate('tanggal','>=',Carbon::now()->subDays(7));
-        } elseif ($filter == '30') {
-            $query->whereDate('tanggal','>=',Carbon::now()->subDays(30));
+        // 1. FILTER TANGGAL (VERSI PERBAIKAN WAKTU REAL)
+        if ($tanggal_mulai && $tanggal_selesai) {
+            // Kita tambahkan 00:00:00 untuk mulai dan 23:59:59 untuk selesai
+            $query->where('tanggal', '>=', $tanggal_mulai . ' 00:00:00')
+                  ->where('tanggal', '<=', $tanggal_selesai . ' 23:59:59');
+            $filter = 'custom';
+        } else {
+            // Filter cepat bawaan
+            if ($filter == '7') {
+                $query->where('tanggal', '>=', Carbon::now()->subDays(7)->startOfDay());
+            } elseif ($filter == '30') {
+                $query->where('tanggal', '>=', Carbon::now()->subDays(30)->startOfDay());
+            }
         }
 
+        // 2. FILTER KATEGORI
+        if ($kategori_id != 'all') {
+            $query->whereHas('detail.produk', function($q) use ($kategori_id) {
+                $q->where('id_kategori', $kategori_id);
+            });
+        }
+
+        // Ambil Data
         $pesanan = $query->get();
 
+        // Hitung Statistik
         $totalPendapatan = $pesanan->sum('total_harga');
         $totalPesanan = $pesanan->count();
         $rataRata = $totalPesanan > 0 ? $totalPendapatan / $totalPesanan : 0;
 
-        // Pendapatan per tanggal
-        $chart = Pesanan::select(
-                DB::raw('DATE(tanggal) as tanggal'),
-                DB::raw('SUM(total_harga) as total')
-            )
-            ->groupBy('tanggal')
-            ->orderBy('tanggal','asc')
-            ->get();
+        // Persiapkan Data Chart (Grafik) secara otomatis sesuai filter
+        $chartData = $pesanan->groupBy(function($item) {
+            return Carbon::parse($item->tanggal ?? $item->created_at)->format('Y-m-d');
+        })->map(function ($row) {
+            return $row->sum('total_harga');
+        });
+
+        $labels = $chartData->keys();
+        $dataPendapatan = $chartData->values();
+
+        // Ambil list kategori untuk dropdown
+        $kategoriList = Kategori::all();
 
         return view('admin.laporan.index', compact(
             'totalPendapatan',
             'totalPesanan',
             'rataRata',
-            'chart',
-            'filter'
+            'labels',
+            'dataPendapatan',
+            'filter',
+            'kategoriList',
+            'kategori_id',
+            'tanggal_mulai',
+            'tanggal_selesai'
         ));
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $filter = $request->filter ?? '30';
+        $kategori_id = $request->kategori_id ?? 'all';
+        $tanggal_mulai = $request->tanggal_mulai;
+        $tanggal_selesai = $request->tanggal_selesai;
+
+        $query = Pesanan::where('status', '!=', 'dibatalkan');
+
+        // TERAPKAN JUGA PERBAIKAN WAKTU DI SINI AGAR PDF-NYA AKURAT
+        if ($tanggal_mulai && $tanggal_selesai) {
+            $query->where('tanggal', '>=', $tanggal_mulai . ' 00:00:00')
+                  ->where('tanggal', '<=', $tanggal_selesai . ' 23:59:59');
+        } else {
+            if ($filter == '7') {
+                $query->where('tanggal', '>=', Carbon::now()->subDays(7)->startOfDay());
+            } elseif ($filter == '30') {
+                $query->where('tanggal', '>=', Carbon::now()->subDays(30)->startOfDay());
+            }
+        }
+
+        if ($kategori_id != 'all') {
+            $query->whereHas('detail.produk', function($q) use ($kategori_id) {
+                $q->where('id_kategori', $kategori_id);
+            });
+        }
+
+        $pesanan = $query->get();
+        $totalPendapatan = $pesanan->sum('total_harga');
+        $totalPesanan = $pesanan->count();
+
+        $pdf = Pdf::loadView('admin.laporan.pdf', compact(
+            'pesanan',
+            'totalPendapatan',
+            'totalPesanan'
+        ));
+
+        return $pdf->download('laporan-penjualan.pdf');
     }
 }

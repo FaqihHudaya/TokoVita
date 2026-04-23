@@ -14,7 +14,6 @@ class KeranjangController extends Controller
 public function checkoutProses(Request $request)
 {
 
-dd($request->all());
     // 1. Validasi input dari form
     $request->validate([
         'nama_lengkap' => 'required',

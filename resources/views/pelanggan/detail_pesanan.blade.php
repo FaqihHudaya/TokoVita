@@ -32,8 +32,20 @@
 
     <p class="mt-3"><b>Nama:</b> {{ $pesanan->nama_lengkap }}</p>
     <p><b>No HP:</b> {{ $pesanan->no_hp }}</p>
-    <p><b>Alamat:</b> {{ $pesanan->alamat }}</p>
     <p><strong>Catatan:</strong> {{ $pesanan->catatan }}</p>
+    <div class="mb-2">
+    <span class="font-semibold">Metode Pembayaran:</span>
+
+    <span class="px-3 py-1 rounded-full text-sm
+        {{ $pesanan->metode_pembayaran == 'cod' 
+            ? 'bg-yellow-100 text-yellow-700' 
+            : 'bg-green-100 text-green-700' }}">
+
+        {{ $pesanan->metode_pembayaran == 'cod' 
+            ? 'COD (Bayar di Tempat)' 
+            : 'E-wallet/Bank' }}
+    </span>
+</div>
 <p><strong>Metode Penerimaan:</strong> {{ $pesanan->metode_penerimaan }}</p>
 
 </div>

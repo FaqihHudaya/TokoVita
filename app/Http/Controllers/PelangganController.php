@@ -9,9 +9,29 @@ use App\Models\pesanan;
 use App\Models\detailpesanan;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Kategori;
+use Midtrans\Config;
+use Midtrans\Snap;
 
 class PelangganController extends Controller
 {
+
+public function getNotif()
+{
+    $userId = Auth::id();
+
+    $notif = \App\Models\Pesanan::where('id_user', $userId)
+        ->whereIn('status', ['diproses', 'selesai'])
+        ->where('is_read', false)
+        ->get();
+
+    // tandai sudah dibaca
+    foreach ($notif as $n) {
+        $n->is_read = true;
+        $n->save();
+    }
+
+    return response()->json($notif);
+}
 
 private function hargaDiskon($produk)
 {
@@ -41,17 +61,37 @@ public function dashboard(Request $request)
     })
     ->get();
 
-    $jumlahKeranjang = Keranjang::where('id_user', Auth::id())
-                        ->sum('jumlah');
+    $jumlahKeranjang = 0;
+    $jumlahPesanan = 0;
+    $pesananAktif = collect();
 
-    $jumlahPesanan = Pesanan::where('id_user', Auth::id())
-                        ->count();
+    if (\Illuminate\Support\Facades\Auth::check()) {
+        $userId = \Illuminate\Support\Facades\Auth::id();
+        
+        $jumlahKeranjang = \App\Models\Keranjang::where('id_user', $userId)->sum('jumlah');
+        $jumlahPesanan = \App\Models\Pesanan::where('id_user', $userId)->count();
+        
+        // MENGAMBIL PESANAN AKTIF UNTUK NOTIFIKASI
+        // MENGAMBIL PESANAN AKTIF (HANYA YANG DIPROSES) BESERTA DATA PRODUKNYA
+$pesananAktif = \App\Models\Pesanan::with('detail.produk')
+    ->where('id_user', $userId)
+    ->whereIn('status', ['diproses', 'selesai'])
+    ->where('is_read', false) // 🔥 FILTER NOTIF
+    ->orderBy('id_pesanan', 'desc')
+    ->get();
+
+    foreach ($pesananAktif as $p) {
+    $p->is_read = true;
+    $p->save();
+}
+    }
 
     return view('pelanggan.dashboard', compact(
         'produk',
         'kategori',
         'jumlahKeranjang',
-        'jumlahPesanan'
+        'jumlahPesanan',
+        'pesananAktif'
     ));
 }
 
@@ -117,6 +157,7 @@ $nomorAntrian = $last ? $last + 1 : 1;
 'no_hp' => Auth::user()->no_telfon,
         'alamat' => $request->alamat,
          'catatan' => $request->catatan,
+         'metode_pembayaran' => $request->metode_pembayaran,
         'metode_penerimaan' => $request->metode_penerimaan,
         'total_harga' => $total,
         'total' => $total,
@@ -126,18 +167,16 @@ $nomorAntrian = $last ? $last + 1 : 1;
 
     foreach ($keranjang as $item) {
 
-            $subtotal = $item->produk->harga * $item->jumlah;
-            $harga = $this->hargaDiskon($item->produk);
+           $harga = $this->hargaDiskon($item->produk);
+$subtotal = $harga * $item->jumlah;
 
-
-        detailpesanan::create([
-            'id_pesanan' => $pesanan->id_pesanan,
-            'id_produk' => $item->id_produk,
-            'jumlah' => $item->jumlah,
-            'harga' => $harga,
-            'subtotal' => $subtotal
-
-        ]);
+detailpesanan::create([
+    'id_pesanan' => $pesanan->id_pesanan,
+    'id_produk' => $item->id_produk,
+    'jumlah' => $item->jumlah,
+    'harga' => $harga, // ✅ harga setelah diskon dari DB
+    'subtotal' => $subtotal
+]);
         
     // 🔥 KURANGI STOK OTOMATIS
     $produk = $item->produk;
@@ -146,10 +185,55 @@ $nomorAntrian = $last ? $last + 1 : 1;
 
     }
 
+    // ✅ 4. MIDTRANS DI SINI
+// 🔥 MIDTRANS CONFIG
+$metode = $request->metode_pembayaran;
+
+// 🔥 JIKA COD
+if ($metode == 'cod') {
+
+    // kosongkan keranjang
     keranjang::where('id_user', Auth::id())->delete();
 
-    return redirect()->route('pelanggan.dashboard')
-            ->with('success','Pesanan berhasil dibuat');
+    return redirect()->route('pelanggan.riwayat')
+        ->with('success', 'Pesanan berhasil dibuat (COD)');
+}
+
+
+// 🔥 JIKA MIDTRANS
+if ($metode == 'midtrans') {
+
+    Config::$serverKey = config('midtrans.serverKey');
+    Config::$isProduction = config('midtrans.isProduction');
+    Config::$isSanitized = config('midtrans.isSanitized');
+    Config::$is3ds = config('midtrans.is3ds');
+
+    $params = [
+        'transaction_details' => [
+            'order_id' => 'ORDER-' . $pesanan->id_pesanan,
+            'gross_amount' => (int) $total,
+        ],
+        'customer_details' => [
+            'first_name' => Auth::user()->nama,
+            'phone' => Auth::user()->no_telfon,
+        ],
+        'callbacks' => [
+    'finish' => url('/riwayat'),
+],
+    ];
+
+    $snapToken = Snap::getSnapToken($params);
+
+    // simpan token
+    $pesanan->snap_token = $snapToken;
+    $pesanan->save();
+
+    // kosongkan keranjang
+    keranjang::where('id_user', Auth::id())->delete();
+
+   return redirect()->route('checkout')
+    ->with('snap_token', $snapToken);
+}
 }
 
 
@@ -193,6 +277,41 @@ public function tambahKeranjang($id)
     }
 
 return back()->with('success', 'Produk ditambahkan ke keranjang');
+}
+
+public function callback(Request $request)
+{
+    $serverKey = config('midtrans.serverKey');
+    $hashed = hash("sha512",
+        $request->order_id .
+        $request->status_code .
+        $request->gross_amount .
+        $serverKey
+    );
+
+    if ($hashed == $request->signature_key) {
+
+        $order_id = str_replace('ORDER-', '', $request->order_id);
+
+        $pesanan = Pesanan::where('id_pesanan', $order_id)->first();
+
+        if ($request->transaction_status == 'capture' || $request->transaction_status == 'settlement') {
+            $pesanan->status = 'dibayar';
+
+               keranjang::where('id_user', Auth::id())->delete();
+        }
+        elseif ($request->transaction_status == 'pending') {
+            $pesanan->status = 'menunggu pembayaran';
+        }
+        elseif ($request->transaction_status == 'expire') {
+            $pesanan->status = 'kadaluarsa';
+        }
+        elseif ($request->transaction_status == 'cancel') {
+            $pesanan->status = 'dibatalkan';
+        }
+
+        $pesanan->save();
+    }
 }
 
 }

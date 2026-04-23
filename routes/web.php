@@ -9,10 +9,10 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\PelangganController;
 use App\Http\Controllers\KeranjangController;
 use App\Http\Controllers\AdminKategoriController;
+use App\Http\Controllers\AuthController;
 
-Route::get('/', function () {
-    return view('home');
-});
+Route::get('/', [PelangganController::class, 'dashboard'])
+    ->name('home');
 
 Route::get('/dashboard', function () {
     return view('dashboard');
@@ -61,11 +61,32 @@ Route::middleware(['auth'])->prefix('admin')->group(function () {
 
 });
 
-Route::middleware(['auth', 'role:pelanggan'])->prefix('pelanggan')->group(function () {
+Route::prefix('pelanggan')->group(function () {
 
     Route::get('/dashboard', [PelangganController::class, 'dashboard'])
     ->name('pelanggan.dashboard');
 
+    Route::get('/produk/{id}', [PelangganController::class, 'detailProduk'])
+    ->name('pelanggan.detailProduk');
+
+    Route::get('/forgot-password', [AuthController::class, 'formLupa']);
+Route::post('/forgot-password', [AuthController::class, 'kirimOtp']);
+
+Route::get('/verifikasi-otp', [AuthController::class, 'formOtp']);
+Route::post('/verifikasi-otp', [AuthController::class, 'cekOtp']);
+
+Route::get('/reset-password', [AuthController::class, 'formReset']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);   
+
+Route::get('/forgot-password', function () {
+    return view('authentic.forgot-password');
+})->name('forgot.password');
+
+
+});
+
+Route::middleware(['auth'])->group(function () {
+    
     Route::get('/checkout', [PelangganController::class, 'checkout'])
         ->name('checkout');
 
@@ -81,9 +102,10 @@ Route::middleware(['auth', 'role:pelanggan'])->prefix('pelanggan')->group(functi
     Route::get('/riwayat',[PelangganController::class,'riwayat'])
 ->name('pelanggan.riwayat');    
 
-Route::get('/produk/{id}', [PelangganController::class, 'detailProduk'])
-->name('pelanggan.detailProduk');
+Route::post('/midtrans/callback', [PelangganController::class, 'callback']);
 
+Route::get('/notif', [PelangganController::class, 'getNotif'])
+    ->middleware('auth');
 });
 
 Route::middleware(['auth', 'role:pelanggan'])->group(function () {
@@ -103,9 +125,6 @@ Route::middleware(['auth', 'role:pelanggan'])->group(function () {
         Route::put('/keranjang/update/{id}',
     [KeranjangController::class, 'updateJumlah'])
     ->name('keranjang.update');
-
-    Route::post('/checkout/proses', [KeranjangController::class, 'checkoutProses'])
-    ->name('checkout.proses');
 
 });
 
