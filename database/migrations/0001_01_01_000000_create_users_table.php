@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('no_telfon', 20);
             $table->string('password', 255);
             $table->enum('role', ['admin', 'pelanggan'])->default('pelanggan');
-            $table->timestamp('created_at')->useCurrent();
+            $table->timestamps();
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {

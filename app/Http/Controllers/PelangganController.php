@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\Kategori;
 use Midtrans\Config;
 use Midtrans\Snap;
+use Illuminate\Support\Facades\Log;
 
 class PelangganController extends Controller
 {
@@ -155,7 +156,6 @@ $nomorAntrian = $last ? $last + 1 : 1;
         'id_user' => Auth::id(),
         'nama_lengkap' => Auth::user()->nama,
 'no_hp' => Auth::user()->no_telfon,
-        'alamat' => $request->alamat,
          'catatan' => $request->catatan,
          'metode_pembayaran' => $request->metode_pembayaran,
         'metode_penerimaan' => $request->metode_penerimaan,
@@ -281,37 +281,58 @@ return back()->with('success', 'Produk ditambahkan ke keranjang');
 
 public function callback(Request $request)
 {
-    $serverKey = config('midtrans.serverKey');
-    $hashed = hash("sha512",
-        $request->order_id .
-        $request->status_code .
-        $request->gross_amount .
-        $serverKey
-    );
+    Log::info('MIDTRANS CALLBACK MASUK', $request->all());
 
-    if ($hashed == $request->signature_key) {
+    try {
+        $serverKey = config('midtrans.serverKey');
+
+        $hashed = hash("sha512",
+            $request->order_id .
+            $request->status_code .
+            $request->gross_amount .
+            $serverKey
+        );
+
+        if ($hashed != $request->signature_key) {
+            Log::error('SIGNATURE TIDAK VALID');
+            return response()->json(['message' => 'Invalid signature'], 403);
+        }
 
         $order_id = str_replace('ORDER-', '', $request->order_id);
 
         $pesanan = Pesanan::where('id_pesanan', $order_id)->first();
 
-        if ($request->transaction_status == 'capture' || $request->transaction_status == 'settlement') {
-            $pesanan->status = 'dibayar';
+        if (!$pesanan) {
+            Log::error('PESANAN TIDAK DITEMUKAN', ['order_id' => $order_id]);
+            return response()->json(['message' => 'Pesanan tidak ditemukan'], 404);
+        }
 
-               keranjang::where('id_user', Auth::id())->delete();
-        }
-        elseif ($request->transaction_status == 'pending') {
+        // update status
+        if (in_array($request->transaction_status, ['capture', 'settlement'])) {
+            $pesanan->status = 'selesai';
+        } elseif ($request->transaction_status == 'pending') {
             $pesanan->status = 'menunggu pembayaran';
-        }
-        elseif ($request->transaction_status == 'expire') {
+        } elseif ($request->transaction_status == 'expire') {
             $pesanan->status = 'kadaluarsa';
-        }
-        elseif ($request->transaction_status == 'cancel') {
+        } elseif ($request->transaction_status == 'cancel') {
             $pesanan->status = 'dibatalkan';
         }
 
         $pesanan->save();
+
+        Log::info('STATUS BERHASIL DIUPDATE', [
+            'order_id' => $order_id,
+            'status' => $pesanan->status
+        ]);
+
+        return response()->json(['message' => 'OK']);
+
+    } catch (\Exception $e) {
+        Log::error('ERROR CALLBACK', [
+            'message' => $e->getMessage()
+        ]);
+
+        return response()->json(['message' => 'Error'], 500);
     }
 }
-
 }

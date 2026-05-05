@@ -158,25 +158,25 @@ loadNotif();
     </a>
 @endauth
 
-        <!-- KERANJANG -->
-        <a href="{{ route('keranjang.index') }}" class="relative">
-            🛒
-            @if($jumlahKeranjang > 0)
-            <span class="absolute -top-3 -right-3 bg-red-600 text-white text-xs px-2 py-1 rounded-full">
-                {{ $jumlahKeranjang }}
-            </span>
-            @endif
-        </a>
+       <!-- KERANJANG -->
+<a href="{{ route('keranjang.index') }}" class="relative">
+    🛒
+    @if(($jumlahKeranjang ?? 0) > 0)
+    <span class="absolute -top-3 -right-3 bg-red-600 text-white text-xs px-2 py-1 rounded-full">
+        {{ $jumlahKeranjang ?? 0 }}
+    </span>
+    @endif
+</a>
 
-        <!-- PESANAN -->
-        <a href="{{ route('pelanggan.riwayat') }}" class="relative">
-            📦
-            @if($jumlahPesanan > 0)
-            <span class="absolute -top-3 -right-2 bg-red-600 text-white text-xs px-2 py-1 rounded-full">
-                {{ $jumlahPesanan }}
-            </span>
-            @endif
-        </a>
+<!-- PESANAN -->
+<a href="{{ route('pelanggan.riwayat') }}" class="relative">
+    📦
+    @if(($jumlahPesanan ?? 0) > 0)
+    <span class="absolute -top-3 -right-2 bg-red-600 text-white text-xs px-2 py-1 rounded-full">
+        {{ $jumlahPesanan ?? 0 }}
+    </span>
+    @endif
+</a>
 
 
     </div>

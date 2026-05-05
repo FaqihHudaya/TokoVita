@@ -112,8 +112,10 @@ class AdminLaporanController extends Controller
             'pesanan',
             'totalPendapatan',
             'totalPesanan'
-        ));
-
+       ), [
+    'user' => \Illuminate\Support\Facades\Auth::user(),
+    'waktu' => now()
+]);
         return $pdf->download('laporan-penjualan.pdf');
     }
 }

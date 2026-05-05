@@ -20,6 +20,7 @@ return new class extends Migration
     $table->decimal('total_harga', 10, 2);
     $table->enum('status', ['menunggu','diproses','siap_diambil','selesai']);
     $table->timestamps();
+    $table->integer('nomor_antrian')->nullable();
 });
 
     }

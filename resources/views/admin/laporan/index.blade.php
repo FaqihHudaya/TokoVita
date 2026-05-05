@@ -75,8 +75,9 @@
 
                 {{-- Tombol Export PDF --}}
                 <div class="flex gap-2 w-full lg:w-auto border-t lg:border-t-0 pt-4 lg:pt-0">
-                    <a href="{{ url('admin/laporan/pdf') }}?{{ http_build_query(request()->all()) }}" class="w-full lg:w-auto bg-gray-800 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-gray-900 transition shadow-sm flex items-center justify-center gap-2">
-                        <i class="fa-solid fa-file-pdf text-red-400"></i> Unduh PDF
+                    <a href="{{ route('admin.laporan.pdf', request()->all()) }}" class="w-full lg:w-auto bg-gray-800 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-gray-900 transition shadow-sm flex items-center justify-center gap-2">
+                     <i class="fa-solid fa-file-pdf text-red-400"></i> Unduh PDF
+                     </a>
                     </a>
                 </div>
             </div>

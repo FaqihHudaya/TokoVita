@@ -11,11 +11,14 @@ use App\Http\Controllers\KeranjangController;
 use App\Http\Controllers\AdminKategoriController;
 use App\Http\Controllers\AuthController;
 
+Route::post('/midtrans/callback', [PelangganController::class, 'callback']);
+
+
 Route::get('/', [PelangganController::class, 'dashboard'])
     ->name('home');
 
 Route::get('/dashboard', function () {
-    return view('dashboard');
+    return view('pelanggan.dashboard');
 })->middleware('auth')->name('dashboard');
 
 
@@ -53,10 +56,10 @@ Route::middleware(['auth'])->prefix('admin')->group(function () {
     Route::get('/laporan', [AdminLaporanController::class, 'index'])
     ->name('admin.laporan');    
 
-    Route::get('/admin/laporan/pdf', [AdminLaporanController::class, 'exportPdf'])
+   Route::get('/laporan/pdf', [AdminLaporanController::class, 'exportPdf'])
     ->name('admin.laporan.pdf');
 
-    Route::get('/admin/dashboard', [AdminController::class, 'dashboard'])
+    Route::get('/dashboard', [AdminController::class, 'dashboard'])
     ->name('admin.dashboard');
 
 });
@@ -82,7 +85,6 @@ Route::get('/forgot-password', function () {
     return view('authentic.forgot-password');
 })->name('forgot.password');
 
-
 });
 
 Route::middleware(['auth'])->group(function () {
@@ -101,8 +103,6 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/riwayat',[PelangganController::class,'riwayat'])
 ->name('pelanggan.riwayat');    
-
-Route::post('/midtrans/callback', [PelangganController::class, 'callback']);
 
 Route::get('/notif', [PelangganController::class, 'getNotif'])
     ->middleware('auth');
